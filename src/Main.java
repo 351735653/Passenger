@@ -1,14 +1,3 @@
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-
-import com.google.common.base.Splitter;
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Multimap;
-
-import form.Itinerary;
-import form.Paras;
 import sch.Schedule;
 
 
@@ -22,11 +11,14 @@ public class Main {
 		
 //		//测试pnr读数据情况
 //		sch.readPnr("./test1/pnr.csv");
-		for(int i = 0; i < sch.pnrs.size(); i++)
+		for(int i = 0; i < Schedule.pnrs.size(); i++)
 		{
-		    sch.pnrs.get(i).play();
+		    Schedule.pnrs.get(i).play();
 		}
 
+		sch.solutions.get(0).play();
+		
+		System.out.println(sch.long_short);
 //		List<Integer> tmp = new ArrayList<Integer>();
 //		tmp.add(1);
 //		tmp.add(2);
