@@ -21,15 +21,19 @@ import form.Itinerary;
 import form.Paras;
 import form.Plan;
 import form.Pnr;
+import form.Solution;
 import sun.rmi.log.ReliableLog.LogFile;
 import tool.DATE;
 
 public class Schedule {
     
-    public ArrayList<Pnr> pnrs;
+    public static ArrayList<Pnr> pnrs;
     public ArrayList<Flight> oriflights;
     public ArrayList<Flight> availflights;
     public Paras paras;
+    
+    //方案相关
+    public ArrayList<Solution> solutions;//全部pnr的全部方案
     
     //索引
     public Multimap<Integer, Integer> ori_avail;//原始行程与可用航班的索引
@@ -50,10 +54,14 @@ public class Schedule {
         pnrs = new ArrayList<Pnr>();
         oriflights = new ArrayList<Flight>();
         availflights = new ArrayList<Flight>();
-        ori_avail = ArrayListMultimap.create();
         paras = new Paras();
+        
+        solutions = new ArrayList<Solution>();
+        
+        ori_avail = ArrayListMultimap.create();
         long_short = ArrayListMultimap.create();
         pnr_ori = ArrayListMultimap.create();
+        
         availflight0= new ArrayList<Flight>();
     }
     
@@ -71,6 +79,7 @@ public class Schedule {
      */
     public void feasibleSolution() throws Exception {
         ArrayList<Integer> pnrindexset = getPnrByNum();
+        Solution solution = new Solution();
         for(int i = 0 ; i < pnrindexset.size(); i++)
         {
             int pindex = pnrindexset.get(i);//第i个pnr的索引
@@ -100,9 +109,10 @@ public class Schedule {
                     }
                 }
             }
-            pnrs.get(pindex).scheme.add(plan);
+            solution.plans.add(plan);
+            solution.pnrindex[i] = pindex;
         }
-        
+        solutions.add(solution);
     }
     
     /**
@@ -169,7 +179,7 @@ public class Schedule {
      */
     public Plan getOriPlan(int pnrindex)
     {
-        Plan result = pnrs.get(pnrindex).scheme.get(0).clone();
+        Plan result = pnrs.get(pnrindex).oriplan.clone();
 //        result.play();
         return result;
     }
@@ -277,7 +287,6 @@ public class Schedule {
             int pnrNum;// 人数
             int pnrValue; // PNR价值
             int pnrType;// PNR类型
-            ArrayList<Plan> scheme = new ArrayList<Plan>(); // PNR的初始方案及保护方案
             int planNum; // 保护方案数
             String[] item = line.split(",");
             pnrID = item[0];
@@ -316,8 +325,7 @@ public class Schedule {
                 i++;
             }
             Plan plan = new Plan(itineraries);
-            scheme.add(plan);// 是否要clone??
-            Pnr pnr = new Pnr(pnrID, pnrNum, pnrValue, pnrType, scheme, planNum);
+            Pnr pnr = new Pnr(pnrID, pnrNum, pnrValue, pnrType, plan, planNum);
             pnrs.add(pnr);
             p++;
             line = reader.readLine();
@@ -588,15 +596,16 @@ public class Schedule {
 //      {
 //          System.out.println(availflights.get(i).toString());
 //      }
-        String fileName0 = "./test" + t + "/beforeSchFlight.csv";
-        File fileTest0 = new File(fileName0);//准备输出的文件
-        PrintStream fileStream0 = new PrintStream(new FileOutputStream(fileTest0));
-        for(int i = 0; i < availflights.size(); i++)
-        {
-            fileStream0.println(availflights.get(i).toString());
-        }
-        fileStream0.close();
         
+//        String fileName0 = "./test" + t + "/beforeSchFlight.csv";
+//        File fileTest0 = new File(fileName0);//准备输出的文件
+//        PrintStream fileStream0 = new PrintStream(new FileOutputStream(fileTest0));
+//        for(int i = 0; i < availflights.size(); i++)
+//        {
+//            fileStream0.println(availflights.get(i).toString());
+//        }
+//        fileStream0.close();
+//        
         
         feasibleSolution();
         
@@ -606,14 +615,15 @@ public class Schedule {
 //      {
 //          System.out.println(availflights.get(i).toString());
 //      }
-        String fileName = "./test" + t + "/afterSchFlight.csv";
-        File fileTest = new File(fileName);//准备输出的文件
-        PrintStream fileStream = new PrintStream(new FileOutputStream(fileTest));
-        for(int i = 0; i < availflights.size(); i++)
-        {
-            fileStream.println(availflights.get(i).toString());
-        }
-        fileStream.close();
+        
+//        String fileName = "./test" + t + "/afterSchFlight.csv";
+//        File fileTest = new File(fileName);//准备输出的文件
+//        PrintStream fileStream = new PrintStream(new FileOutputStream(fileTest));
+//        for(int i = 0; i < availflights.size(); i++)
+//        {
+//            fileStream.println(availflights.get(i).toString());
+//        }
+//        fileStream.close();
     }
     
 }
