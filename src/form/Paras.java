@@ -6,19 +6,19 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 
 public class Paras {
-	public  double satisfaction;						//满意度权重
-	public  double profit;							//收益权重
-	public  HashMap<String, Integer> CAB_SEQ;		//舱位序列
-	public  Multimap<String,String>CAB_LIMIT;	//舱位限制
-	public  String ORI_CAB;			//原舱位保护的等级
-	public  double CAB_UP;			//升舱
-	public  double CAB_DOWN;			//降舱
-	public  double CHANGE_NUM;		//变动次数
-	public  double TOTAL_TIME;		//总耗时
-	public  double SIM_DEG;			//接近程度
-	public  double MCT_TIME;			//中转衔接时间
-	public  double PROFIT_UP;			//升舱收益
-	public  double PROFIT_DOWN;		//降舱收益
+	public static double satisfaction;						//满意度权重
+	public static double profit;							//收益权重
+	public static  HashMap<String, Integer> CAB_SEQ;		//舱位序列
+	public static Multimap<String,String>CAB_LIMIT;	//舱位限制
+	public static String ORI_CAB;			//原舱位保护的等级
+	public static double CAB_UP;			//升舱
+	public static  double CAB_DOWN;			//降舱
+	public static double CHANGE_NUM;		//变动次数
+	public static double TOTAL_TIME;		//总耗时
+	public static double SIM_DEG;			//接近程度
+	public static double MCT_TIME;			//衔接时间
+	public static double PROFIT_UP;			//升舱收益
+	public static double PROFIT_DOWN;		//降舱收益
 	public Paras(
 	    String sa,
 	    String pro,

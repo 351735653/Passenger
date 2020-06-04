@@ -10,8 +10,9 @@ public class Itinerary implements Cloneable{
 	public DATE depTime;			//出发时间
 	public String ariAirport;		//到达站
 	public DATE ariTime;			//到达时间
+	public boolean ori;             //是否原航班标志；true是，false否
 	public Itinerary(String flightID, String largeCab, String smallCab, String depAirport, String depTime,
-			String ariAirport, String ariTime) throws Exception {
+			String ariAirport, String ariTime,boolean ori) throws Exception {
 		this.flightID = flightID;
 		this.largeCab = largeCab;
 		this.smallCab = smallCab;
@@ -19,6 +20,7 @@ public class Itinerary implements Cloneable{
 		this.depTime = new DATE(depTime);
 		this.ariAirport = ariAirport;
 		this.ariTime = new DATE(ariTime);
+		this.ori = ori;
 	}
 	public Itinerary clone()
 	{
@@ -32,6 +34,7 @@ public class Itinerary implements Cloneable{
 		    clone.depTime = depTime.clone();
 		    clone.ariAirport = ariAirport;
 		    clone.ariTime = ariTime.clone();
+		    clone.ori = ori;
 		    return clone;
 		} catch (CloneNotSupportedException e) {
 			e.printStackTrace();
@@ -42,7 +45,7 @@ public class Itinerary implements Cloneable{
 	@Override
 	public String toString() {
 		return "Itinerary [flightID=" + flightID + ", largeCab=" + largeCab + ", smallCab=" + smallCab + ", depAirport="
-				+ depAirport + ", depTime=" + depTime.toDateTime() + ", ariAirport=" + ariAirport + ", ariTime=" + ariTime.toDateTime() + "]";
+				+ depAirport + ", depTime=" + depTime.toDateTime() + ", ariAirport=" + ariAirport + ", ariTime=" + ariTime.toDateTime() +  ", ori=" + ori+"]";
 	}
 	
 }

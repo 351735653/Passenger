@@ -7,7 +7,6 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -22,8 +21,11 @@ import form.Paras;
 import form.Plan;
 import form.Pnr;
 import form.Solution;
-import sun.rmi.log.ReliableLog.LogFile;
+import ilog.concert.IloObjective;
+import ilog.concert.IloRange;
+import ilog.cplex.IloCplex;
 import tool.DATE;
+import tool.GCtool.IloNumVarArray;
 
 public class Schedule {
     
@@ -33,7 +35,7 @@ public class Schedule {
     public Paras paras;
     
     //方案相关
-    public ArrayList<Solution> solutions;//全部pnr的全部方案
+    public Solution solution;
     
     //索引
     public Multimap<Integer, Integer> ori_avail;//原始行程与可用航班的索引
@@ -46,6 +48,12 @@ public class Schedule {
     public String legdata;
     public String paradata;
     
+    //cplex相关
+    public IloCplex mainSolver;
+    public IloObjective obj;
+    public IloRange[]   Fill;
+    public IloNumVarArray vars;
+    
     //备份数据
     public ArrayList<Flight> availflight0;//可用航班数据备份
     
@@ -56,7 +64,7 @@ public class Schedule {
         availflights = new ArrayList<Flight>();
         paras = new Paras();
         
-        solutions = new ArrayList<Solution>();
+        solution = new Solution();
         
         ori_avail = ArrayListMultimap.create();
         long_short = ArrayListMultimap.create();
@@ -73,13 +81,16 @@ public class Schedule {
         }
     }
     
+    public void columnGeneration()
+    {
+        
+    }
     /**
      * 可行解
      * @throws Exception 
      */
     public void feasibleSolution() throws Exception {
         ArrayList<Integer> pnrindexset = getPnrByNum();
-        Solution solution = new Solution();
         for(int i = 0 ; i < pnrindexset.size(); i++)
         {
             int pindex = pnrindexset.get(i);//第i个pnr的索引
@@ -109,12 +120,86 @@ public class Schedule {
                     }
                 }
             }
+//            pnrs.get(pindex).scheme.add(plan);
+            plan.cost = plan.calPlanCost(pindex);
             solution.plans.add(plan);
-            solution.pnrindex[i] = pindex;
+            solution.pnrindex.add(pindex);
         }
-        solutions.add(solution);
     }
     
+    /**计算方案代价
+     * @param plan
+     * @param pindex
+     * @return
+     */
+    private double calPlanCost(Plan plan, int pindex) {
+         double result = -1;
+         Plan ori = getOriPlan(pindex);
+         double passenger = 0;
+         double company = 0;
+         double cabchangecost = 0;//舱位变动
+         double changecost = 0;//行程变动
+         double timecost = 0;//总耗时变动
+         double sixhrcost = 0;//接近程度(大于六小时航段)
+         double mctcost = 0;//mct时间
+         int cab = 0;
+         int changenum = 0;
+         long oritime = 0; //分钟
+         long plantime = 0;
+         int timediff = 0;
+         int mcttime = 0;
+         DATE s1 = ori.itineraries.get(0).depTime.clone();
+         DATE e1 = ori.itineraries.get(1).ariTime.clone();
+         oritime = e1.difftime_min(s1);
+         DATE s2 = plan.itineraries.get(0).depTime.clone();
+         DATE e2 = plan.itineraries.get(1).ariTime.clone();
+         plantime = e2.difftime_min(s2);
+         timecost = (oritime - plantime) * Paras.TOTAL_TIME;
+         DATE ofa = ori.itineraries.get(0).ariTime.clone();
+         DATE osd = ori.itineraries.get(1).depTime.clone();
+         DATE pfa = ori.itineraries.get(0).ariTime.clone();
+         DATE psd = ori.itineraries.get(1).depTime.clone();
+         for(int i = 0; i < plan.itineraries.size(); i++)
+         {
+             //
+             if(Math.abs(plan.itineraries.get(i).depTime.clone().difftime_min(ori.itineraries.get(i).depTime.clone())) >= 360)
+             {
+                 timediff++;
+             }
+             //
+             if(plan.itineraries.get(i).ori == false)
+             {
+                 changenum++;
+             }
+             //
+             String plancab = plan.itineraries.get(i).largeCab;
+             String oricab = ori.itineraries.get(i).largeCab;
+             cab += Paras.CAB_SEQ.get(plancab) - Paras.CAB_SEQ.get(oricab);
+             //
+         }
+         if(cab > 0)// 降舱
+         {
+             cabchangecost = Math.abs(cab)*Paras.CAB_DOWN;
+             company = Math.abs(cab) * Paras.PROFIT_DOWN;
+         }
+         else//升舱或不变
+         {
+             cabchangecost = Math.abs(cab)*Paras.CAB_UP;
+             company = Math.abs(cab) * Paras.PROFIT_UP;
+         }
+         changecost = changenum * Paras.CHANGE_NUM;
+         sixhrcost = timediff * Paras.SIM_DEG;
+         mctcost = (osd.difftime_min(ofa) - psd.difftime_min(pfa)) * Paras.MCT_TIME;
+         passenger = cabchangecost +    //舱位变动
+                     changecost +       //是否原航班变动
+                     timecost +         //总耗时变动
+                     sixhrcost +        //接近程度(大于六小时航段)
+                     mctcost;           //mct时间
+         //航司收益
+         result = Paras.satisfaction * passenger + Paras.profit * company;
+         return result;
+    }
+
     /**
      * 按照人数排序pnr
      */
@@ -177,9 +262,9 @@ public class Schedule {
      * @param pnrindex
      * @return
      */
-    public Plan getOriPlan(int pnrindex)
+    public static Plan getOriPlan(int pnrindex)
     {
-        Plan result = pnrs.get(pnrindex).oriplan.clone();
+        Plan result = pnrs.get(pnrindex).scheme.clone();
 //        result.play();
         return result;
     }
@@ -261,7 +346,7 @@ public class Schedule {
             {
                 largeCab = availseatset.get(i);
                 f.availSeatNum.set(seatindex, aseatnum-p.pnrNum);
-                Itinerary it = new Itinerary(f.flightID, largeCab, smallCab, f.depAirport, f.depTime.toDateTime(), f.AriAirport, f.AriTime.toDateTime());
+                Itinerary it = new Itinerary(f.flightID, largeCab, smallCab, f.depAirport, f.depTime.toDateTime(), f.AriAirport, f.AriTime.toDateTime(), f.ori);
                 return it;
             }
         }
@@ -287,6 +372,7 @@ public class Schedule {
             int pnrNum;// 人数
             int pnrValue; // PNR价值
             int pnrType;// PNR类型
+            ArrayList<Plan> scheme = new ArrayList<Plan>(); // PNR的初始方案及保护方案
             int planNum; // 保护方案数
             String[] item = line.split(",");
             pnrID = item[0];
@@ -320,11 +406,12 @@ public class Schedule {
                 }
                 
                 //end
-                Itinerary it = new Itinerary(flightID, largeCab, smallCab, depAirport, depTime, ariAirport, ariTime);
+                Itinerary it = new Itinerary(flightID, largeCab, smallCab, depAirport, depTime, ariAirport, ariTime,true);
                 itineraries.add(it);
                 i++;
             }
             Plan plan = new Plan(itineraries);
+//            scheme.add(plan);// 是否要clone??
             Pnr pnr = new Pnr(pnrID, pnrNum, pnrValue, pnrType, plan, planNum);
             pnrs.add(pnr);
             p++;
@@ -592,11 +679,7 @@ public class Schedule {
     {
         setDataIndex(t);
         readData(pnrdata, flightdata, legdata, paradata);
-//        for(int i = 0; i < availflights.size(); i++)
-//      {
-//          System.out.println(availflights.get(i).toString());
-//      }
-        
+        copyData();
 //        String fileName0 = "./test" + t + "/beforeSchFlight.csv";
 //        File fileTest0 = new File(fileName0);//准备输出的文件
 //        PrintStream fileStream0 = new PrintStream(new FileOutputStream(fileTest0));
@@ -605,16 +688,9 @@ public class Schedule {
 //            fileStream0.println(availflights.get(i).toString());
 //        }
 //        fileStream0.close();
-//        
         
         feasibleSolution();
         
-        
-
-//        for(int i = 0; i < availflights.size(); i++)
-//      {
-//          System.out.println(availflights.get(i).toString());
-//      }
         
 //        String fileName = "./test" + t + "/afterSchFlight.csv";
 //        File fileTest = new File(fileName);//准备输出的文件

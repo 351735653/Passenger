@@ -1,7 +1,6 @@
  package form;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 
 import sch.Schedule;
 
@@ -9,30 +8,34 @@ import sch.Schedule;
 
 public class Solution implements Cloneable{
     
-    public ArrayList<Plan> plans;//一套完整的方案
-    public int[] pnrindex; //对应plans中Plan索引的pnr索引
+    public ArrayList<Plan> plans;//所有方案
+    public ArrayList<Integer> pnrindex; //对应plans中Plan索引的pnr索引
 
     public Solution clone()
     {
-        Solution sol=new Solution();
-        ArrayList<Plan> plan0=new ArrayList<Plan>();
-        for(int i=0;i<plans.size();i++)
+        Solution sol = new Solution();
+        ArrayList<Plan> plan0 = new ArrayList<Plan>();
+        for(int i = 0; i < plans.size(); i++)
             plan0.add(plans.get(i).clone());
-        sol.pnrindex = pnrindex.clone();
+        ArrayList<Integer> index0 = new ArrayList<Integer>();
+        for(int i = 0; i < pnrindex.size(); i++)
+        {
+            index0.add(new Integer(pnrindex.get(i).intValue()));
+        }
         return sol;
     }
     
     public Solution()
     {
         plans = new ArrayList<Plan>();
-        pnrindex = new int[Schedule.pnrs.size()];
+        pnrindex = new ArrayList<Integer>();
     }
     public void play()
     {
         System.out.println("——————————————————————————————————————————————————————————");
         for(int i = 0; i < plans.size(); i++)
         {
-            Schedule.pnrs.get(pnrindex[i]).playinfo();
+            Schedule.pnrs.get(pnrindex.get(i)).playinfo();
             plans.get(i).play();
         }
     }
