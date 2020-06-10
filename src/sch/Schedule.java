@@ -11,6 +11,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
+import org.omg.CORBA.NO_IMPLEMENT;
+
 import com.google.common.base.Splitter;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
@@ -21,9 +23,13 @@ import form.Paras;
 import form.Plan;
 import form.Pnr;
 import form.Solution;
+import ilog.concert.IloColumn;
+import ilog.concert.IloException;
 import ilog.concert.IloObjective;
 import ilog.concert.IloRange;
+import ilog.cplex.CouldNotInstallColumnException;
 import ilog.cplex.IloCplex;
+import tool.ColumnGeneration;
 import tool.DATE;
 import tool.GCtool.IloNumVarArray;
 
@@ -31,11 +37,11 @@ public class Schedule {
     
     public static ArrayList<Pnr> pnrs;
     public ArrayList<Flight> oriflights;
-    public ArrayList<Flight> availflights;
+    public static ArrayList<Flight> availflights;
     public Paras paras;
     
     //方案相关
-    public Solution solution;
+    public static ArrayList<Plan> plans;
     
     //索引
     public Multimap<Integer, Integer> ori_avail;//原始行程与可用航班的索引
@@ -48,14 +54,10 @@ public class Schedule {
     public String legdata;
     public String paradata;
     
-    //cplex相关
-    public IloCplex mainSolver;
-    public IloObjective obj;
-    public IloRange[]   Fill;
-    public IloNumVarArray vars;
-    
     //备份数据
-    public ArrayList<Flight> availflight0;//可用航班数据备份
+    public static ArrayList<Flight> availflight0;//可用航班数据备份
+    
+    public static int longlegnum; //长航段数量
     
     public Schedule()
     {
@@ -64,13 +66,14 @@ public class Schedule {
         availflights = new ArrayList<Flight>();
         paras = new Paras();
         
-        solution = new Solution();
+        plans = new ArrayList<Plan>();
         
         ori_avail = ArrayListMultimap.create();
         long_short = ArrayListMultimap.create();
         pnr_ori = ArrayListMultimap.create();
         
         availflight0= new ArrayList<Flight>();
+        longlegnum = 0;
     }
     
     public void copyData()
@@ -81,12 +84,15 @@ public class Schedule {
         }
     }
     
-    public void columnGeneration()
+    public Plan findSolution_Heuristic()
     {
+        Plan plan = new Plan();
         
+        return plan;
     }
+    
     /**
-     * 可行解
+         * 可行解
      * @throws Exception 
      */
     public void feasibleSolution() throws Exception {
@@ -122,8 +128,9 @@ public class Schedule {
             }
 //            pnrs.get(pindex).scheme.add(plan);
             plan.cost = plan.calPlanCost(pindex);
-            solution.plans.add(plan);
-            solution.pnrindex.add(pindex);
+            plan.pnrindex = pindex;
+            plan.calPlanVars();
+            plans.add(plan);
         }
     }
     
@@ -132,7 +139,7 @@ public class Schedule {
      * @param pindex
      * @return
      */
-    private double calPlanCost(Plan plan, int pindex) {
+    public double calPlanCost(Plan plan, int pindex) {
          double result = -1;
          Plan ori = getOriPlan(pindex);
          double passenger = 0;
@@ -346,7 +353,7 @@ public class Schedule {
             {
                 largeCab = availseatset.get(i);
                 f.availSeatNum.set(seatindex, aseatnum-p.pnrNum);
-                Itinerary it = new Itinerary(f.flightID, largeCab, smallCab, f.depAirport, f.depTime.toDateTime(), f.AriAirport, f.AriTime.toDateTime(), f.ori);
+                Itinerary it = new Itinerary(f.inid, f.flightID, largeCab, smallCab, f.depAirport, f.depTime.toDateTime(), f.AriAirport, f.AriTime.toDateTime(), f.ori,f.longleg);
                 return it;
             }
         }
@@ -372,7 +379,6 @@ public class Schedule {
             int pnrNum;// 人数
             int pnrValue; // PNR价值
             int pnrType;// PNR类型
-            ArrayList<Plan> scheme = new ArrayList<Plan>(); // PNR的初始方案及保护方案
             int planNum; // 保护方案数
             String[] item = line.split(",");
             pnrID = item[0];
@@ -406,12 +412,11 @@ public class Schedule {
                 }
                 
                 //end
-                Itinerary it = new Itinerary(flightID, largeCab, smallCab, depAirport, depTime, ariAirport, ariTime,true);
+                Itinerary it = new Itinerary(-1,flightID, largeCab, smallCab, depAirport, depTime, ariAirport, ariTime, true, false);
                 itineraries.add(it);
                 i++;
             }
             Plan plan = new Plan(itineraries);
-//            scheme.add(plan);// 是否要clone??
             Pnr pnr = new Pnr(pnrID, pnrNum, pnrValue, pnrType, plan, planNum);
             pnrs.add(pnr);
             p++;
@@ -609,6 +614,7 @@ public class Schedule {
             availflights.add(f);
             long_short.put(inid, tmp1.inid);
             long_short.put(inid, tmp2.inid);
+            longlegnum++;
             line = reader.readLine();
             if (line == null)
                 break;
@@ -632,7 +638,7 @@ public class Schedule {
          return -1;
     }
     /**
-     * 根据航班号，出发时间，到达时间获得可用行程的内部编号
+     * 根据航班号，出发时间，到达时间获得可用航班的内部编号
      * @param id
      * @param deptime
      * @param aritime
@@ -671,6 +677,31 @@ public class Schedule {
         return false;
     }
     /**
+     * 建立问题模型并迭代求解
+     * @throws IloException
+     */
+    public void buildModel() throws IloException {
+        ColumnGeneration cg = new ColumnGeneration();
+        cg.initProblem();
+        if(cg.solve())
+        {
+            System.out.println("当前目标值为："+ cg.curObj);
+            System.out.println("当前解为：" );
+            for(int i = 0; i < cg.curSol.length; i++)
+            {
+                System.out.print(" X" + i + ":"+ cg.curSol[i]);
+            }
+            System.out.println();
+            System.out.println("Dual Price");
+            double[] price = cg.mainSolver.getDuals(cg.fill);
+            int tmp = Schedule.pnrs.size() + (Schedule.availflights.size() - Schedule.longlegnum) * Paras.CAB_SEQ.size();
+            for(int i = 0; i < tmp; i++)
+            {
+                System.out.println(" "+ i +":" +price[i]);
+            }
+        }
+    }
+    /**
      * 主函数
      * @param t
      * @throws Exception
@@ -680,6 +711,7 @@ public class Schedule {
         setDataIndex(t);
         readData(pnrdata, flightdata, legdata, paradata);
         copyData();
+
 //        String fileName0 = "./test" + t + "/beforeSchFlight.csv";
 //        File fileTest0 = new File(fileName0);//准备输出的文件
 //        PrintStream fileStream0 = new PrintStream(new FileOutputStream(fileTest0));
@@ -688,10 +720,8 @@ public class Schedule {
 //            fileStream0.println(availflights.get(i).toString());
 //        }
 //        fileStream0.close();
-        
         feasibleSolution();
-        
-        
+        buildModel();
 //        String fileName = "./test" + t + "/afterSchFlight.csv";
 //        File fileTest = new File(fileName);//准备输出的文件
 //        PrintStream fileStream = new PrintStream(new FileOutputStream(fileTest));

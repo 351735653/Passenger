@@ -5,7 +5,7 @@ import java.util.List;
 
 import tool.DATE;
 
-public class Flight {
+public class Flight implements Cloneable{
     
     public int inid;                //ÄÚ²¿±àºÅ
     

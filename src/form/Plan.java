@@ -7,23 +7,30 @@ import tool.DATE;
 
 
 public class Plan implements Cloneable{
+    
 	public ArrayList<Itinerary> itineraries;
 	public double cost;
+    public int pnrindex;
+    public int[] decisionvars;
 	
 	public Plan(ArrayList<Itinerary> it) {
 		itineraries = new ArrayList<Itinerary>();
-		
+		decisionvars = new int[1];  
 		for(int i = 0 ; i < it.size(); i++)
 		{
 			itineraries.add(it.get(i).clone());
 		}
 		double cost = -1;
+		pnrindex = -1;
 	}
 
 	public Plan () {
 	    itineraries = new ArrayList<Itinerary>();
+	    decisionvars = new int[Schedule.pnrs.size() + (Schedule.availflights.size() - Schedule.longlegnum) * Paras.CAB_SEQ.size()];// + longleg
 	    cost = -1;
+	    pnrindex = -1;
 	}
+	
 	public Plan clone(){
 	    Plan clone = null;
         try {
@@ -34,6 +41,8 @@ public class Plan implements Cloneable{
     	        clone.itineraries.add(this.itineraries.get(i).clone());
     	    }
             clone.cost = this.cost;
+            clone.pnrindex = this.pnrindex;
+            clone.decisionvars = this.decisionvars;
             return clone;
         } catch (CloneNotSupportedException e) {
             // TODO Auto-generated catch block
@@ -43,12 +52,33 @@ public class Plan implements Cloneable{
 
 	}
 	
+	//计算Plan的变量
+	public void calPlanVars() {
+	    decisionvars[pnrindex] = 1;
+	    for(int i = 0; i < itineraries.size(); i++)
+	    {
+	        int flightinid = itineraries.get(i).inid;
+	        int seatid = Paras.CAB_SEQ.get(itineraries.get(i).largeCab);
+	        int pnrnum = Schedule.pnrs.get(pnrindex).pnrNum;
+	        decisionvars[Schedule.pnrs.size() - 1  
+	                     +flightinid * Paras.CAB_SEQ.size() 
+	                     +seatid + 1 ] = pnrnum;
+	    }
+	    
+	    // + longleg
+	}
+	
+	
     /**计算方案代价
      * @param plan
      * @param pindex
      * @return
      */
     public double calPlanCost(int pindex) {
+        if(itineraries.get(0).longleg == true)
+        {
+            // + longleg
+        }
          double result = -1;
          Plan ori = Schedule.getOriPlan(pindex);
          double passenger = 0;
@@ -106,14 +136,14 @@ public class Plan implements Cloneable{
              cabchangecost = Math.abs(cab)*Paras.CAB_UP;
              company = Math.abs(cab) * Paras.PROFIT_UP;
          }
-         System.out.println("舱位变动代价：" + cabchangecost);
+//         System.out.println("舱位变动代价：" + cabchangecost);
          changecost = changenum * Paras.CHANGE_NUM;
-         System.out.println("变动次数代价： " + changecost);
+//         System.out.println("变动次数代价： " + changecost);
          sixhrcost = timediff * Paras.SIM_DEG;
-         System.out.println("接近程度代价：" + sixhrcost);
+//         System.out.println("接近程度代价：" + sixhrcost);
          mctcost = (osd.difftime_min(ofa) - psd.difftime_min(pfa)) * Paras.MCT_TIME;
-         System.out.println("衔接时间代价："+ mctcost);
-         System.out.println("————————————————————————————————————");
+//         System.out.println("衔接时间代价："+ mctcost);
+//         System.out.println("————————————————————————————————————");
          passenger = cabchangecost +    //舱位变动
                      changecost +       //是否原航班变动
                      timecost +         //总耗时变动
@@ -130,6 +160,14 @@ public class Plan implements Cloneable{
 	 */
 	public void play() {
 	    System.out.println("COST = " + cost);
+	    System.out.println("PNR索引：" + pnrindex);
+	    System.out.print("变量："+"[");
+	    
+	    for(int i = 0; i < decisionvars.length; i++)
+	    {
+	        System.out.print(i+":"+decisionvars[i] +" ");
+	    }
+	    System.out.println("]");
 		for(int i = 0 ;i < itineraries.size(); i++)
 		{
 			System.out.print("第"+i+"段行程 : " + itineraries.get(i).toString());

@@ -8,11 +8,11 @@ import com.google.common.collect.Multimap;
 public class Paras {
 	public static double satisfaction;						//满意度权重
 	public static double profit;							//收益权重
-	public static  HashMap<String, Integer> CAB_SEQ;		//舱位序列
+	public static HashMap<String, Integer> CAB_SEQ;		//舱位序列
 	public static Multimap<String,String>CAB_LIMIT;	//舱位限制
 	public static String ORI_CAB;			//原舱位保护的等级
 	public static double CAB_UP;			//升舱
-	public static  double CAB_DOWN;			//降舱
+	public static double CAB_DOWN;			//降舱
 	public static double CHANGE_NUM;		//变动次数
 	public static double TOTAL_TIME;		//总耗时
 	public static double SIM_DEG;			//接近程度
@@ -34,19 +34,19 @@ public class Paras {
 	    String proup,
 	    String prodown)
 	{
-	    this.satisfaction = Double.parseDouble(sa);
-	    this.profit = Double.parseDouble(pro);
-	    this.CAB_SEQ = getCabSeq(cabseq);
-	    this.CAB_LIMIT = getCabLimit(cablimit);
-	    this.ORI_CAB = oricab;
-	    this.CAB_UP =Double.parseDouble(cabup);
-	    this.CAB_DOWN = Double.parseDouble(cabdown);
-	    this.CHANGE_NUM = Double.parseDouble(changenum);
-	    this.TOTAL_TIME = Double.parseDouble(totaltime);
-	    this.SIM_DEG = Double.parseDouble(simdeg);
-	    this.MCT_TIME = Double.parseDouble(mctime);
-	    this.PROFIT_UP = Double.parseDouble(proup);
-	    this.PROFIT_DOWN = Double.parseDouble(prodown);
+	    Paras.satisfaction = Double.parseDouble(sa);
+	    Paras.profit = Double.parseDouble(pro);
+	    Paras.CAB_SEQ = getCabSeq(cabseq);
+	    Paras.CAB_LIMIT = getCabLimit(cablimit);
+	    Paras.ORI_CAB = oricab;
+	    Paras.CAB_UP =Double.parseDouble(cabup);
+	    Paras.CAB_DOWN = Double.parseDouble(cabdown);
+	    Paras.CHANGE_NUM = Double.parseDouble(changenum);
+	    Paras.TOTAL_TIME = Double.parseDouble(totaltime);
+	    Paras.SIM_DEG = Double.parseDouble(simdeg);
+	    Paras.MCT_TIME = Double.parseDouble(mctime);
+	    Paras.PROFIT_UP = Double.parseDouble(proup);
+	    Paras.PROFIT_DOWN = Double.parseDouble(prodown);
 	}
 	
 	@Override
