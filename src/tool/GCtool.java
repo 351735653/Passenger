@@ -1,5 +1,8 @@
  package tool;
 
+import java.util.ArrayList;
+
+import form.Plan;
 import ilog.concert.IloException;
 import ilog.concert.IloNumVar;
 import ilog.concert.IloRange;
@@ -39,4 +42,23 @@ public class GCtool {
                 System.out.println(fill[i].getLB()+"<="+fill[i].getExpr()+"<="+fill[i].getUB());
         }  
     }
+    
+    public static void reportResult(IloCplex solver, IloNumVarArray vars,ArrayList<Plan> plans) throws IloException 
+    {
+        System.out.println();
+        System.out.println("ObjValue: " + solver.getObjValue());
+        System.out.println("Solution choice: ");
+        for (int j = 0; j < vars.getSize(); j++) 
+            System.out.printf("%-6.2f",solver.getValue(vars.getElement(j)));
+        System.out.println();
+        for(int i = 0; i < vars.getSize(); i++)
+        {
+            if(solver.getValue(vars.getElement(i)) == 1)
+            {
+                plans.get(i).play();
+            }
+        }
+        
+    }
+    
 }

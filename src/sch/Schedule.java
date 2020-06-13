@@ -31,12 +31,13 @@ import ilog.cplex.CouldNotInstallColumnException;
 import ilog.cplex.IloCplex;
 import tool.ColumnGeneration;
 import tool.DATE;
+import tool.GCtool;
 import tool.GCtool.IloNumVarArray;
 
 public class Schedule {
     
     public static ArrayList<Pnr> pnrs;
-    public ArrayList<Flight> oriflights;
+    public static ArrayList<Flight> oriflights;
     public static ArrayList<Flight> availflights;
     public Paras paras;
     
@@ -44,8 +45,8 @@ public class Schedule {
     public static ArrayList<Plan> plans;
     
     //索引
-    public Multimap<Integer, Integer> ori_avail;//原始行程与可用航班的索引
-    public Multimap<Integer, Integer> pnr_ori;//pnr 与 原始行程的索引
+    public static Multimap<Integer, Integer> ori_avail;//原始行程与可用航班的索引
+    public static Multimap<Integer, Integer> pnr_ori;//pnr 与 原始行程的索引
     public Multimap<Integer, Integer> long_short;//长航段与短航段的对应索引
     
     //读文件地址
@@ -57,7 +58,9 @@ public class Schedule {
     //备份数据
     public static ArrayList<Flight> availflight0;//可用航班数据备份
     
+    public static double RC_EPS = 1.0e-8;
     public static int longlegnum; //长航段数量
+    public static double initCost; //初始解代价
     
     public Schedule()
     {
@@ -83,13 +86,7 @@ public class Schedule {
             availflight0.add(availflights.get(i).clone());
         }
     }
-    
-    public Plan findSolution_Heuristic()
-    {
-        Plan plan = new Plan();
-        
-        return plan;
-    }
+
     
     /**
          * 可行解
@@ -122,7 +119,7 @@ public class Schedule {
                     }
                     if(f == afindexset.size()-1)
                     {
-                        System.err.println("索引为"+pindex+"的pnr的索引为"+oindex+"的原始行程未找到可行方案feasibleSolution");
+                        throw new Exception("索引为"+pindex+"的pnr的索引为"+oindex+"的原始行程未找到可行方案feasibleSolution");
                     }
                 }
             }
@@ -132,8 +129,22 @@ public class Schedule {
             plan.calPlanVars();
             plans.add(plan);
         }
+        initCost = calInitCost();
+        resetData();
     }
-    
+    /**
+     * 计算初始解的总代价
+     * @return
+     */
+    public double calInitCost() {
+        double result = 0;
+        for(int i = 0; i < plans.size(); i ++)
+        {
+//            System.out.println(" cost"+i+":"+plans.get(i).cost);
+            result += plans.get(i).cost;
+        }
+        return result;
+    }
     /**计算方案代价
      * @param plan
      * @param pindex
@@ -281,7 +292,7 @@ public class Schedule {
      * @param itindex
      * @return
      */
-    public String getSeatClass(int pnrindex,int itindex)
+    public static String getSeatClass(int pnrindex,int itindex)
     {
         Plan tmp = getOriPlan(pnrindex);
         Flight ori = oriflights.get(itindex);
@@ -297,7 +308,7 @@ public class Schedule {
         }
         if(result == null)
         {
-            System.err.println("pnr索引为"+pnrindex+" 原始行程索引为"+itindex+"未找到可用舱位等级getSeatClass");
+            System.err.println("pnr索引为"+pnrindex+" 原始行程索引为"+itindex+"未找到舱位等级getSeatClass");
         }
         return result;
     }
@@ -307,14 +318,22 @@ public class Schedule {
      * @param itindex
      * @return
      */
-    public List<String> getAvailSeatClass(int pnrindex,int itindex)
+    public static List<String> getAvailSeatClass(int pnrindex,int itindex)
     {
         String tmp = getSeatClass(pnrindex, itindex);
-        List<String> result = new ArrayList<String>(paras.CAB_LIMIT.get(tmp));
+        List<String> result = new ArrayList<String>(Paras.CAB_LIMIT.get(tmp));
         
         return result;
     }
-    
+    /**根据pnr索引  可用航班索引判断航班是否可用
+     * @param pindex
+     * @param aindex
+     * @return
+     */
+    private boolean flightAvailForPnr(int pindex, int aindex) {
+
+         return false;
+    }
     /**
      * 根据pnr索引 pnr第i个行程索引，第i个行程可用航班索引，判断是否可为pnr安排方案，如果可以，则核减人数，并生成方案。
      * @param pnrindex
@@ -337,7 +356,7 @@ public class Schedule {
         {
             DATE fdep = f.depTime.clone();
             DATE avail = prearitime.clone().add(f.MCT);
-            if(fdep.compareTo(avail) < 0)
+            if(fdep.compareTo(avail) <= 0)
             {
                 return null;
             }
@@ -643,8 +662,9 @@ public class Schedule {
      * @param deptime
      * @param aritime
      * @return
+     * @throws Exception 
      */
-    public int getAvailInidByFidDtimeAtime(String id, DATE deptime, DATE aritime) {
+    public int getAvailInidByFidDtimeAtime(String id, DATE deptime, DATE aritime) throws Exception {
         for(int i = 0 ; i < availflights.size(); i++)
         {
             if(availflights.get(i).flightID.equals(id)
@@ -652,8 +672,9 @@ public class Schedule {
                 &&(availflights.get(i).AriTime.compareTo(aritime)==0))
                 return availflights.get(i).inid;
         }
-         return -1;
+        throw new Exception("未找到航班号为"+id+" 出发时间为"+deptime.toDateTime()+" 到达时间为"+aritime.toDateTime()+"的航班");
     }
+    
     /**
      * 添加初始航班时
      * 根据航班号，出发时间，到达时间 判断是否包含重复航班
@@ -677,29 +698,73 @@ public class Schedule {
         return false;
     }
     /**
-     * 建立问题模型并迭代求解
-     * @throws IloException
+     * 复原可用航班数据
      */
-    public void buildModel() throws IloException {
+    public void resetData()
+    {
+        availflights.clear();
+        for(int i = 0 ; i < availflight0.size(); i++)
+        {
+            availflights.add(availflight0.get(i).clone());
+        }
+    }
+    
+    /**
+     * 建立问题模型并迭代求解
+     * @throws Exception 
+     */
+    public void buildModel() throws Exception {
         ColumnGeneration cg = new ColumnGeneration();
         cg.initProblem();
-        if(cg.solve())
+        while(true)
         {
-            System.out.println("当前目标值为："+ cg.curObj);
-            System.out.println("当前解为：" );
-            for(int i = 0; i < cg.curSol.length; i++)
+            if(cg.solve())
             {
-                System.out.print(" X" + i + ":"+ cg.curSol[i]);
+                
+                Plan plan = cg.findSolution_Heuristic();
+                if( plan != null)
+                {
+                    
+                    plan.play();//
+                    
+                    cg.addColumn(plan);
+                    plans.add(plan);
+                    System.out.println("cloumnNum:::"+plans.size());
+                }
+                else {
+                    GCtool.reportResult(cg.mainSolver, cg.vars, plans);
+                    System.out.println("bestobj:" + cg.curObj);
+                    System.out.println("initobj:" + initCost);
+                    break;
+                }
             }
-            System.out.println();
-            System.out.println("Dual Price");
-            double[] price = cg.mainSolver.getDuals(cg.fill);
-            int tmp = Schedule.pnrs.size() + (Schedule.availflights.size() - Schedule.longlegnum) * Paras.CAB_SEQ.size();
-            for(int i = 0; i < tmp; i++)
-            {
-                System.out.println(" "+ i +":" +price[i]);
+            else {
+                System.out.println("未成功求解");
+                break;
+                
             }
+            
         }
+        cg.mainSolver.end();
+//        if(cg.solve())
+//        {
+//            System.out.println("当前目标值为："+ cg.curObj);
+//            System.out.println("当前解为：" );
+//            for(int i = 0; i < cg.curSol.length; i++)
+//            {
+//                System.out.print(" X" + i + ":"+ cg.curSol[i]);
+//            }
+//            System.out.println();
+//            System.out.println("Dual Price");
+//            double[] price = cg.mainSolver.getDuals(cg.fill);
+//            int tmp = Schedule.pnrs.size() + (Schedule.availflights.size() - Schedule.longlegnum) * Paras.CAB_SEQ.size();
+//            for(int i = 0; i < tmp; i++)
+//            {
+//                System.out.println(" "+ i +":" +price[i]);
+//            }
+//        }
+        
+        
     }
     /**
      * 主函数

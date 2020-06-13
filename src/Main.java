@@ -10,24 +10,26 @@ public class Main {
 	public static void main(String[] args) throws Exception {
 		
 		Schedule sch = new Schedule();
-		int dataindex = 2;
+		int dataindex = 1;
 		sch.run(dataindex);
 
-		for(int i = 0; i < sch.pnrs.size(); i++)
-		{
-		    sch.pnrs.get(i).play();
-		}
-		
-		for(int i = 0; i < sch.plans.size(); i++)
-		{
-		    sch.pnrs.get(sch.plans.get(i).pnrindex).playinfo();
-		    sch.plans.get(i).play();
-		}
+//		for(int i = 0; i < sch.pnrs.size(); i++)
+//		{
+//		    sch.pnrs.get(i).play();
+//		}
+//		
+//		for(int i = 0; i < sch.plans.size(); i++)
+//		{
+//		    sch.pnrs.get(sch.plans.get(i).pnrindex).playinfo();
+//		    sch.plans.get(i).play();
+//		}
 		
 		
 //		List<Integer> tmp = new ArrayList<Integer>();
 //		tmp.add(1);
 //		tmp.add(2);
+//		System.out.println(tmp.size());
+//		tmp.clear();
 //		System.out.println(tmp.size());
 
 		

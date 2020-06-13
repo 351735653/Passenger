@@ -7,7 +7,7 @@ public class Pnr {
 	public int pnrNum;				//人数
 	public int pnrValue ;		//PNR价值
 	public int pnrType;				//PNR类型
-	public Plan scheme;	//PNR的初始方案及保护方案
+	public Plan scheme;	//PNR的初始方案
 	public int planNum;				//保护方案数
 	public Pnr(String pnrID, int pnrNum, int pnrValue, int pnrType, Plan scheme, int planNum) {
 		this.pnrID = pnrID;
