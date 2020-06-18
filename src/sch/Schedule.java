@@ -6,6 +6,7 @@ import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -16,6 +17,7 @@ import org.omg.CORBA.NO_IMPLEMENT;
 import com.google.common.base.Splitter;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
+
 
 import form.Flight;
 import form.Itinerary;
@@ -40,6 +42,8 @@ public class Schedule {
     public static ArrayList<Flight> oriflights;
     public static ArrayList<Flight> availflights;
     public Paras paras;
+    public int pnrnumbers;
+    public int seatnumbers;
     
     //方案相关
     public static ArrayList<Plan> plans;
@@ -60,7 +64,14 @@ public class Schedule {
     
     public static double RC_EPS = 1.0e-8;
     public static int longlegnum; //长航段数量
-    public static double initCost; //初始解代价
+    
+    public static double bestObj=Double.MIN_VALUE;//最优目标值
+    public static double initObj=-1; //初始解代价
+    public static double[] bestS = null;//最好的列选结果
+    public static double[] initS = null;
+    public static ColumnGeneration bestNode;//最优解的问题节点
+    public static ArrayList<Plan> bestPlans;
+    public static ArrayList<ColumnGeneration> nodeQueue;//分支定价节点序列，深度优先的分支判断
     
     public Schedule()
     {
@@ -75,8 +86,261 @@ public class Schedule {
         long_short = ArrayListMultimap.create();
         pnr_ori = ArrayListMultimap.create();
         
-        availflight0= new ArrayList<Flight>();
+        availflight0 = new ArrayList<Flight>();
         longlegnum = 0;
+        bestS = null;
+        initS = null;
+        pnrnumbers = 0;
+        seatnumbers = 0;
+    }
+    
+    
+    
+    
+    /**
+     * 建立问题模型并迭代求解
+     * @throws Exception 
+     */
+    public void buildModel(int t) throws Exception {
+        nodeQueue = new ArrayList<ColumnGeneration>();
+        ColumnGeneration node = new ColumnGeneration();
+        node.initProblem();
+        nodeQueue.add(node);
+        long begintime = 0;
+        long endtime = 0;
+        begintime = System.currentTimeMillis();
+        int k = 0;
+        while(nodeQueue.size() > 0)
+        {
+            ColumnGeneration problem = nodeQueue.get(nodeQueue.size()-1);
+            boolean next=false;
+            
+            while(true)
+            {
+                double[] s = null;
+                if(problem.solve())
+                {
+//                    //
+//                    GCtool.reportModel(problem.mainSolver, problem.fill);
+//                    //
+                    s=problem.curSol;
+                }
+                else
+                {
+                    next=true;
+                    break;
+                }
+                double tempObj = problem.curObj;
+                System.out.println("obj:: "+tempObj);
+//                if(tempObj == 13559.300000000003)
+//                    System.out.println("test");
+                if(isIntSol(s) && tempObj > bestObj)
+                {
+                    k++;
+                    problem.outPutResult("./test" + t + "/GC_result_"+k+".csv");
+                    bestObj = tempObj;
+                    bestS = s.clone();
+                    bestNode = problem;
+                }
+                boolean breakFlag=true;
+                Plan plan = problem.findSolution_Heuristic();
+                if(plan != null)
+                {
+                    problem.addColumn(plan);
+                    breakFlag=false;
+                    System.out.println("cloumnNum:::"+problem.vars.getSize());
+                }
+                if(breakFlag)
+                    break;
+//                endtime=System.currentTimeMillis();
+//                if(endtime-begintime>300000)
+//                    break;
+            }
+            if(next)//由于不可行跳出循环， 终止节点
+            {   
+                problem.mainSolver.end();
+                nodeQueue.remove(nodeQueue.size()-1);
+                continue;
+            }
+            else //由于不可继续加列跳出循环
+            {
+//                if(problem.curObj <= bestObj || isIntSol(problem.curSol))
+                if(Math.abs(problem.curObj - bestObj) / bestObj <= 0.05|| isIntSol(problem.curSol))
+                {
+                    problem.mainSolver.end();
+                    nodeQueue.remove(nodeQueue.size()-1);
+                    continue;
+                }
+                else 
+                {
+
+                    //System.out.println("分支");
+                    //分支，加俩节点，删除当前节点
+                    @SuppressWarnings("unchecked")
+                    ArrayList<Integer> fixedVars=(ArrayList<Integer>) problem.fixedVars.clone();
+                    double min = 1;
+                    int index = 0;
+                    for(int i = 0; i < problem.curSol.length; i++)
+                    {
+//                        double m1 = Math.ceil(problem.curSol[i]);//向上取整
+//                        double m2 = Math.floor(problem.curSol[i]);//向下取整
+//                        double m = Math.min(problem.curSol[i]-m2, m1-problem.curSol[i]);
+                        double m=Math.rint(problem.curSol[i]);
+                        if(Math.abs(m-problem.curSol[i])>0)
+                        {
+                            index=i;
+                            break;
+                        }
+//                        if(m > 0)
+//                        {
+//                            if(m < min)
+//                            {
+//                                index = i;
+//                                min = m;
+//                                break;
+//                            }
+//                        }   
+                        else
+                            continue;
+                    }
+                    //  System.out.println("index:::"+index+"  "+problem.curSol[index]);
+
+                    //stop
+//                    System.out.println("__________________________________");
+                    System.err.println("_________________________________分支____________________________________________");
+//                    System.out.println("队列大小：" + nodeQueue.size());
+//                    int num = 0;
+//                    for(int i = 0; i < problem.curSol.length; i++)
+//                    { 
+//                        if(problem.curSol[i] == 1)
+//                        {
+//                            num++;
+//                        }
+//                        System.out.printf(i+": "+"%-6.2f"+" ",problem.curSol[i]);
+//                    }
+//                    System.out.println();
+//                    System.out.println("变量取值为1的个数为："+num);
+//                    System.out.println("__________________________________");
+                    //
+                    fixedVars.set(index, 0);
+                    ColumnGeneration node1=new ColumnGeneration(problem,fixedVars);
+                    fixedVars.set(index, 1);
+                    ColumnGeneration node2=new ColumnGeneration(problem,fixedVars);
+                    problem.mainSolver.end();                   
+                    nodeQueue.remove(nodeQueue.size()-1);
+                    nodeQueue.add(node1);
+                    nodeQueue.add(node2);
+                }
+            }
+            endtime = System.currentTimeMillis();
+//            if(endtime-begintime > 3600000)
+//                break;
+        }
+        endtime = System.currentTimeMillis();
+        System.out.println("时间消耗："+(endtime - begintime)/1000.0+"s");
+        bestPlans=new ArrayList<>();
+        for(int i=0;i<bestS.length;i++)
+        {
+            if(bestS[i]==1)
+            {
+                bestPlans.add(bestNode.plans.get(i));
+            }
+        }
+//        while(true)
+//        {
+//            if(cg.solve())
+//            {
+//                
+//                Plan plan = cg.findSolution_Heuristic();
+//                if( plan != null)
+//                {
+//                    
+//                    plan.play();//
+//                    
+//                    cg.addColumn(plan);
+//                    plans.add(plan);
+//                    System.out.println("cloumnNum:::"+plans.size());
+//                }
+//                else {
+//                    GCtool.reportResult(cg.mainSolver, cg.vars, plans);
+//                    System.out.println("bestobj:" + cg.curObj);
+//                    System.out.println("initobj:" + initObj);
+//                    break;
+//                }
+//            }
+//            else {
+//                System.out.println("未成功求解");
+//                break;
+//                
+//            }
+//            
+//        }
+//        cg.mainSolver.end();
+//   
+        
+        
+    }
+    /**
+     * 主函数
+     * @param t
+     * @throws Exception
+     */
+    public void run(int t) throws Exception
+    {
+        setDataIndex(t);//确定要进行试验的数据
+        readData(pnrdata, flightdata, legdata, paradata);//读数据
+        copyData();//备份一份可用航班数据
+        feasibleSolution();//生成初始可行解
+        buildModel(t);//根据初始可行解建模，并解子问题进行迭代
+        report();
+        
+//        String fileName = "./test" + t + "/afterSchFlight.csv";
+//        File fileTest = new File(fileName);//准备输出的文件
+//        PrintStream fileStream = new PrintStream(new FileOutputStream(fileTest));
+//        for(int i = 0; i < availflights.size(); i++)
+//        {
+//            fileStream.println(availflights.get(i).toString());
+//        }
+//        fileStream.close();
+    }
+    public void report() throws IOException
+    {
+        int num = 0;
+        String init="";
+        System.out.println();
+        init="initObj:"+new BigDecimal(initObj).toString() +";";
+        System.out.println(init);
+        
+        String best="";
+        System.out.println();
+        best="bestObj:"+new BigDecimal(bestObj).toString() +";";
+        System.out.println(best);
+        
+        for(int i = 0; i < bestPlans.size(); i++)
+        {
+            bestPlans.get(i).play();
+        }
+        for(int i = 0; i < bestS.length; i++)
+        { 
+            if(bestS[i] == 1)
+            {
+                num++;
+            }
+            System.out.printf("%-6.2f",bestS[i]);
+        }
+        System.out.println();
+        System.out.println("选中方案个数："+num);
+    }
+    
+    
+    public static boolean isIntSol(double[] sol)
+    {
+        for(int i=0;i<sol.length;i++)
+        {
+            if((int)sol[i]!=sol[i])
+                return false;
+        }
+        return true;
     }
     
     public void copyData()
@@ -89,7 +353,7 @@ public class Schedule {
 
     
     /**
-         * 可行解
+     * 可行解
      * @throws Exception 
      */
     public void feasibleSolution() throws Exception {
@@ -106,7 +370,8 @@ public class Schedule {
             for(int j = 0 ; j < orindexset.size(); j++)
             {
                 int oindex = orindexset.get(j);//第i个pnr第j段原始行程的索引 
-                List<Integer> afindexset = (List<Integer>)ori_avail.get(oindex); //第i个pnr第j段原始行程可用航班集合
+                List<Integer> afindexset = getAvailFlightByTime((List<Integer>)ori_avail.get(oindex));//第i个pnr第j段原始行程可用航班集合
+//                List<Integer> afindexset = (List<Integer>)ori_avail.get(oindex); 
                 for(int f = 0 ; f < afindexset.size(); f++)
                 {
                     int aindex = afindexset.get(f);//第i个pnr第j段原始行程第f个可用航班索引
@@ -129,7 +394,7 @@ public class Schedule {
             plan.calPlanVars();
             plans.add(plan);
         }
-        initCost = calInitCost();
+        initObj = calInitCost();
         resetData();
     }
     /**
@@ -165,7 +430,6 @@ public class Schedule {
          long oritime = 0; //分钟
          long plantime = 0;
          int timediff = 0;
-         int mcttime = 0;
          DATE s1 = ori.itineraries.get(0).depTime.clone();
          DATE e1 = ori.itineraries.get(1).ariTime.clone();
          oritime = e1.difftime_min(s1);
@@ -233,10 +497,14 @@ public class Schedule {
             public int compare(Integer i1, Integer i2)
             {
                 try {
-                    if(pnrs.get(i1).pnrNum >= pnrs.get(i2).pnrNum)
+                    if(pnrs.get(i1).pnrNum > pnrs.get(i2).pnrNum)
                         return -1;
-                    else
+                    else if(pnrs.get(i1).pnrNum == pnrs.get(i2).pnrNum)
+                        return 0;
+                    else {
                         return 1;
+                    }
+                        
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -247,6 +515,41 @@ public class Schedule {
         return tmpList;
     }
     
+    public ArrayList<Integer> getAvailFlightByTime(List<Integer> findexset)
+    {
+        ArrayList<Integer> tmpList = new ArrayList<Integer>();
+        for(int i = 0 ; i < findexset.size(); i++)
+        {
+            tmpList.add(findexset.get(i));
+        }
+        
+        Collections.sort(tmpList, new Comparator<Integer> () {
+            public int compare(Integer i1, Integer i2)
+            {
+                try {
+//                    if(pnrs.get(i1).pnrNum > pnrs.get(i2).pnrNum)
+//                        return -1;
+//                    else if(pnrs.get(i1).pnrNum == pnrs.get(i2).pnrNum)
+//                        return 0;
+//                    else {
+//                        return 1;
+                    if(availflights.get(i1).depTime.clone().compareTo(availflights.get(i2).depTime.clone()) < 0)
+                        return -1;
+                    else if (availflights.get(i1).depTime.clone().compareTo(availflights.get(i2).depTime.clone()) == 0)
+                        return 0;
+                    else {
+                        return 1;
+                    }
+                        
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                return 0;
+            }
+        }
+    );
+        return tmpList;
+    }
     /**
      * 顺序读取pnr 航班 长航班 参数 数据
      * @param pnr
@@ -325,15 +628,7 @@ public class Schedule {
         
         return result;
     }
-    /**根据pnr索引  可用航班索引判断航班是否可用
-     * @param pindex
-     * @param aindex
-     * @return
-     */
-    private boolean flightAvailForPnr(int pindex, int aindex) {
 
-         return false;
-    }
     /**
      * 根据pnr索引 pnr第i个行程索引，第i个行程可用航班索引，判断是否可为pnr安排方案，如果可以，则核减人数，并生成方案。
      * @param pnrindex
@@ -366,7 +661,7 @@ public class Schedule {
         String smallCab = "a";
         for(int i = 0; i < availseatset.size(); i++)
         {
-            int seatindex = paras.CAB_SEQ.get(availseatset.get(i)); //i等级座位索引
+            int seatindex = Paras.CAB_SEQ.get(availseatset.get(i)); //i等级座位索引
             int aseatnum = f.availSeatNum.get(seatindex);
             if(aseatnum >= p.pnrNum )
             {
@@ -440,6 +735,9 @@ public class Schedule {
             Pnr pnr = new Pnr(pnrID, pnrNum, pnrValue, pnrType, plan, planNum);
             pnrs.add(pnr);
             p++;
+            //
+            pnrnumbers += pnrNum;
+            //
             line = reader.readLine();
             if (line == null)
                 break;
@@ -454,6 +752,8 @@ public class Schedule {
      */
     public void readFlight(String flightData) throws Exception
     {
+
+        @SuppressWarnings("resource")
         BufferedReader reader = new BufferedReader(new FileReader(flightData));
         String line = reader.readLine();
         if (line.trim().substring(0, 2).compareTo("//") == 0)
@@ -474,6 +774,8 @@ public class Schedule {
                     throw new Exception("未找到 "+id+" 原始行程");
                 }
                 line = reader.readLine();
+                if (line == null)
+                    break;
             }
             else
             {
@@ -485,7 +787,12 @@ public class Schedule {
                 int MCT = Integer.parseInt(item[5]);                 //中转衔接时间
                 
                 List<String> availSeatNum = Splitter.on("|").splitToList(item[6]); //各等级可用座位数
-                
+                //
+                for(String s : availSeatNum)
+                {
+                    seatnumbers += Integer.parseInt(s);
+                }
+                //
                 boolean ori = (Integer.parseInt(item[7]) == 1) ? true : false;             //是否原航班标志；true是，false否
                 boolean longleg = false;                //是否长航班
                 Flight f = new Flight(j, flightID, depAirport, ariAirport, depTime, ariTime, MCT, availSeatNum, ori,longleg);
@@ -497,9 +804,9 @@ public class Schedule {
                 if (line == null)
                     break;
             }
-            
         }
         reader.close();
+        
     }
     
     /**
@@ -710,85 +1017,6 @@ public class Schedule {
         }
     }
     
-    /**
-     * 建立问题模型并迭代求解
-     * @throws Exception 
-     */
-    public void buildModel() throws Exception {
-        ColumnGeneration cg = new ColumnGeneration();
-        cg.initProblem();
-        while(true)
-        {
-            if(cg.solve())
-            {
-                
-                Plan plan = cg.findSolution_Heuristic();
-                if( plan != null)
-                {
-                    
-                    plan.play();//
-                    
-                    cg.addColumn(plan);
-                    plans.add(plan);
-                    System.out.println("cloumnNum:::"+plans.size());
-                }
-                else {
-                    GCtool.reportResult(cg.mainSolver, cg.vars, plans);
-                    System.out.println("bestobj:" + cg.curObj);
-                    System.out.println("initobj:" + initCost);
-                    break;
-                }
-            }
-            else {
-                System.out.println("未成功求解");
-                break;
-                
-            }
-            
-        }
-        cg.mainSolver.end();
-//        if(cg.solve())
-//        {
-//            System.out.println("当前目标值为："+ cg.curObj);
-//            System.out.println("当前解为：" );
-//            for(int i = 0; i < cg.curSol.length; i++)
-//            {
-//                System.out.print(" X" + i + ":"+ cg.curSol[i]);
-//            }
-//            System.out.println();
-//            System.out.println("Dual Price");
-//            double[] price = cg.mainSolver.getDuals(cg.fill);
-//            int tmp = Schedule.pnrs.size() + (Schedule.availflights.size() - Schedule.longlegnum) * Paras.CAB_SEQ.size();
-//            for(int i = 0; i < tmp; i++)
-//            {
-//                System.out.println(" "+ i +":" +price[i]);
-//            }
-//        }
-        
-        
-    }
-    /**
-     * 主函数
-     * @param t
-     * @throws Exception
-     */
-    public void run(int t) throws Exception
-    {
-        setDataIndex(t);//确定要进行试验的数据
-        readData(pnrdata, flightdata, legdata, paradata);//读数据
-        copyData();//备份一份可用航班数据
-        feasibleSolution();//生成初始可行解
-        buildModel();//根据初始可行解建模，并解子问题进行迭代
-        
-        
-//        String fileName = "./test" + t + "/afterSchFlight.csv";
-//        File fileTest = new File(fileName);//准备输出的文件
-//        PrintStream fileStream = new PrintStream(new FileOutputStream(fileTest));
-//        for(int i = 0; i < availflights.size(); i++)
-//        {
-//            fileStream.println(availflights.get(i).toString());
-//        }
-//        fileStream.close();
-    }
+
     
 }

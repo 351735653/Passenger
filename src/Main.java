@@ -13,7 +13,8 @@ public class Main {
 		Schedule sch = new Schedule();
 		int dataindex = 3;
 		sch.run(dataindex);
-		
+		System.out.println("旅客总数："+sch.pnrnumbers);
+		System.out.println("可用座位数："+sch.seatnumbers);
 //		String t1 = "1,1,9,1,1,CA1519|P|a|PEK|2020-01-01 06:30:00|SHA|2020-01-01 08:25:00,CA8425|F|a|SHA|2020-01-01 16:15:00|HKG|2020-01-01 18:55:00";
 //		String t2 = "2,3,9,1,1,CA1519|A|a|PEK|2020-01-01 06:30:00|SHA|2020-01-01 08:25:00";
 //		String[] i1 = t1.split(",");

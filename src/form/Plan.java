@@ -22,7 +22,7 @@ public class Plan implements Cloneable{
 		{
 			itineraries.add(it.get(i).clone());
 		}
-		double cost = -1;
+		cost = -1;
 		pnrindex = -1;
 	}
 
@@ -161,7 +161,6 @@ public class Plan implements Cloneable{
             long oritime = 0; //分钟
             long plantime = 0;
             int timediff = 0;
-            int mcttime = 0;
             DATE s1 = ori.itineraries.get(0).depTime.clone();
             DATE e1 = ori.itineraries.get(0).ariTime.clone();
             oritime = e1.difftime_min(s1);
@@ -195,7 +194,7 @@ public class Plan implements Cloneable{
             }
             else//升舱或不变
             {
-                cabchangecost = Math.abs(cab)*Paras.CAB_UP;
+                cabchangecost = Math.abs(cab) * Paras.CAB_UP;
                 company = Math.abs(cab) * Paras.PROFIT_UP;
             }
    //         System.out.println("舱位变动代价：" + cabchangecost);
@@ -231,7 +230,6 @@ public class Plan implements Cloneable{
              long oritime = 0; //分钟
              long plantime = 0;
              int timediff = 0;
-             int mcttime = 0;
              DATE s1 = ori.itineraries.get(0).depTime.clone();
              DATE e1 = ori.itineraries.get(1).ariTime.clone();
              oritime = e1.difftime_min(s1);
@@ -313,7 +311,6 @@ public class Plan implements Cloneable{
         long oritime = 0; //分钟
         long plantime = 0;
         int timediff = 0;
-        int mcttime = 0;
         DATE s1 = ori.itineraries.get(0).depTime.clone();
         DATE e1 = ori.itineraries.get(1).ariTime.clone();
         oritime = e1.difftime_min(s1);

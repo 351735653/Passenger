@@ -2,8 +2,13 @@
  
 import tool.GCtool.IloNumVarArray;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
+
 
 import form.Flight;
 import form.Itinerary;
@@ -15,7 +20,6 @@ import ilog.concert.IloException;
 import ilog.concert.IloObjective;
 import ilog.concert.IloRange;
 import ilog.cplex.IloCplex;
-import ilog.cplex.IloCplex.UnknownObjectException;
 import sch.Schedule;
 
 /**
@@ -31,7 +35,8 @@ public class ColumnGeneration
     
     public double[] curSol;
     public double curObj;
-    
+    public ArrayList<Plan> plans;
+    public ArrayList<Integer> fixedVars;
     public int varnum;
     
     public ColumnGeneration() throws IloException
@@ -42,8 +47,65 @@ public class ColumnGeneration
                             + Schedule.longlegnum * 2 * Paras.CAB_SEQ.size()];//longleg613
         mainSolver.setOut(null);
         vars= new IloNumVarArray();
+        plans = new ArrayList<Plan>();
+        fixedVars = new ArrayList<Integer>();
         varnum = 0;
     }
+    
+    @SuppressWarnings("unchecked")
+    public ColumnGeneration(ColumnGeneration node, ArrayList<Integer> fixedVars) throws IloException
+    {
+        this.fixedVars=(ArrayList<Integer>)fixedVars.clone();
+        mainSolver = new IloCplex();
+        obj = mainSolver.addMaximize();//目标函数
+        fill = new IloRange[Schedule.pnrs.size() + (Schedule.availflights.size() - Schedule.longlegnum) * Paras.CAB_SEQ.size()
+                            + Schedule.longlegnum * 2 * Paras.CAB_SEQ.size()];//longleg613
+        mainSolver.setOut(null);
+        vars= new IloNumVarArray();
+        plans = new ArrayList<Plan>();
+        int j = 0;
+        while( j < Schedule.pnrs.size())
+        {
+            fill[j] = mainSolver.addRange(Schedule.pnrs.get(j).planNum, Schedule.pnrs.get(j).planNum);
+            j++;
+        }
+        while(j < (Schedule.availflights.size() - Schedule.longlegnum) * Paras.CAB_SEQ.size())
+        {
+            for(int i = 0; i < (Schedule.availflights.size() - Schedule.longlegnum); i++)
+            {
+                List<Integer> tmp = Schedule.availflights.get(i).availSeatNum;
+                for(int k = 0; k < tmp.size(); k++)
+                {
+                    fill[j] = mainSolver.addRange(0, tmp.get(k));
+                    j++;
+                }
+            }
+        }
+        while(j < Schedule.pnrs.size() + (Schedule.availflights.size() - Schedule.longlegnum) * Paras.CAB_SEQ.size()
+                               + Schedule.longlegnum * 2 * Paras.CAB_SEQ.size())
+        {
+            for(int i = 0; i < Schedule.longlegnum; i++)
+            {
+                List<Integer> tmp =(List<Integer>)Schedule.long_short.get(Schedule.availflights.size() - Schedule.longlegnum + i);
+                for(int k = 0; k < tmp.size(); k++)
+                {
+                    List<Integer> as = Schedule.availflights.get(tmp.get(k)).availSeatNum;
+                    for(int l = 0; l < as.size(); l++)
+                    {
+                        fill[j] = mainSolver.addRange(0, as.get(l));
+                        j++;
+                    }
+                }
+            }
+        }
+        for(int i = 0; i < node.plans.size(); i++)
+        {
+            addColumn(node.plans.get(i), this.fixedVars.get(i));
+        }
+        
+//        GCtool.reportModel(mainSolver, fill);
+    }
+    
     /**
      * 初始化模型，添加初始解
      * @throws IloException
@@ -90,7 +152,7 @@ public class ColumnGeneration
         {
             addColumn(Schedule.plans.get(i));
         }
-        GCtool.reportModel(mainSolver, fill);
+//        GCtool.reportModel(mainSolver, fill);
     }
     /**
      * 添加一列，并添加变量
@@ -99,10 +161,32 @@ public class ColumnGeneration
      */
     public void addColumn(Plan plan) throws IloException
     {
+//        plan.play();
         IloColumn c = generateColumn(plan);
         vars.add(mainSolver.numVar(c, 0, 1));
         vars.getElement(varnum).setName("X"+varnum);
         varnum++;
+        plans.add(plan);
+        fixedVars.add(-1);
+    }
+    /**
+     * 添加修正变量的一列
+     * @param plan
+     * @param fixed
+     * @throws IloException
+     */
+    public void addColumn(Plan plan, int fixed) throws IloException
+    {
+//        plan.play();
+        IloColumn c=generateColumn(plan);
+        if(fixed == -1)
+            vars.add(mainSolver.numVar(c,0,1));
+        else
+            vars.add(mainSolver.numVar(c,fixed,fixed));
+        vars.getElement(varnum).setName("X"+varnum);
+        varnum++;
+        fixedVars.add(fixed);
+        plans.add(plan);
     }
     
     
@@ -367,6 +451,31 @@ public class ColumnGeneration
             curSol[j]=mainSolver.getValue(vars.getElement(j));
         curObj=mainSolver.getObjValue();
         return true;
+    }
+
+    /**
+     * @param string
+     * @throws FileNotFoundException 
+     */
+    public void outPutResult(String string) throws FileNotFoundException {
+        // TODO Auto-generated method stub
+        
+        String fileName=string;
+        File fileTest = new File(fileName);//准备输出的文件
+        PrintStream fileStream = new PrintStream(new FileOutputStream(fileTest));
+        fileStream.println("//"+curObj);
+        int num = 0;
+        for(double i : curSol)
+        {
+            if(i == 1)
+            {
+                num++;
+            }
+            fileStream.print(i+" ");
+        }
+        fileStream.println();
+        fileStream.println(num);
+    
     }
     
 }

@@ -29,7 +29,7 @@ public class GCtool {
       }
 
       IloNumVar getElement(int i) { return _array[i]; }
-      int       getSize()         { return _num; }
+      public int       getSize()         { return _num; }
     }
     
     public static void reportModel(IloCplex solver,IloRange[] fill) throws IloException
